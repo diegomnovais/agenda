@@ -2,7 +2,7 @@
 {
   "name": "Planner 2026",
   "short_name": "Planner",
-  "start_url": "planner_2026.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
