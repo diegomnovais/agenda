@@ -138,11 +138,21 @@
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global environment variables
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'planner-2026';
+   
+        const firebaseConfig = {
+        apiKey: "AIzaSyAaJ4CDIJLXbEvuJF0_LKNtoYtOek1bjS0",
+        authDomain: "agenda-2026-e3b3a.firebaseapp.com",
+        databaseURL: "https://agenda-2026-e3b3a-default-rtdb.firebaseio.com",
+        projectId: "agenda-2026-e3b3a",
+        storageBucket: "agenda-2026-e3b3a.firebasestorage.app",
+        messagingSenderId: "1090124230282",
+        appId: "1:1090124230282:web:715c0a3f89078602568770"
+        };
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app); // Note que aqui usamos getDatabase para o Realtime
+const appId = 'planner-2026';
 
         let user = null;
         let currentDate = new Date(2026, 0, 1);
