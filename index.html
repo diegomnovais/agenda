@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <!-- PWA & Mobile Optimization -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
@@ -30,7 +29,6 @@
             touch-action: manipulation;
         }
 
-        /* Lined paper effect for tablet writing */
         .lined-paper {
             background-image: repeating-linear-gradient(transparent, transparent 23px, var(--line-color) 23px, var(--line-color) 24px);
             background-attachment: local;
@@ -71,7 +69,6 @@
 </head>
 <body class="h-screen w-full flex overflow-hidden">
 
-    <!-- Sidebar Navigation -->
     <nav class="w-14 sm:w-16 bg-slate-950 flex flex-col shrink-0 shadow-2xl z-30 border-r border-slate-800">
         <div class="h-16 flex items-center justify-center border-b border-slate-800">
             <span class="text-slate-500 font-black text-xs">2026</span>
@@ -79,10 +76,7 @@
         <div class="flex-1 flex flex-col" id="month-nav"></div>
     </nav>
 
-    <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full relative overflow-hidden bg-white">
-        
-        <!-- Header with Date and Priorities -->
         <header class="h-24 sm:h-32 border-b border-slate-100 flex items-center justify-between px-6 sm:px-10 bg-white shrink-0">
             <div class="flex items-center gap-4">
                 <button onclick="changeDay(-1)" class="p-2 hover:bg-slate-50 rounded-full text-slate-400">
@@ -97,7 +91,6 @@
                 </button>
             </div>
 
-            <!-- Priority Box -->
             <div class="hidden md:block w-80 lg:w-96 bg-slate-50 rounded-xl border border-slate-200 p-3 shadow-sm">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Principais Prioridades</span>
@@ -107,14 +100,11 @@
             </div>
         </header>
 
-        <!-- Body -->
         <div class="flex-1 flex overflow-hidden">
-            <!-- Timeline -->
             <div class="w-16 sm:w-20 border-r border-slate-100 flex flex-col overflow-y-auto hide-scrollbar bg-slate-50/50">
                 <div class="pt-4" id="hours-container"></div>
             </div>
 
-            <!-- Editor -->
             <div class="flex-1 flex flex-col overflow-hidden relative">
                 <div class="h-10 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between px-6 shrink-0">
                     <span class="text-[10px] font-bold text-slate-400 uppercase">Notas e Algoritmos</span>
@@ -124,7 +114,6 @@
                     class="flex-1 w-full p-6 sm:p-10 outline-none resize-none text-slate-700 text-lg sm:text-xl lined-paper hide-scrollbar"
                     placeholder="Escreva aqui..."></textarea>
                 
-                <!-- Sync Status -->
                 <div class="h-6 bg-white border-t border-slate-50 flex items-center px-4 justify-end">
                     <span id="sync-status" class="text-[9px] text-slate-300 italic uppercase">Sincronizado</span>
                 </div>
@@ -134,31 +123,29 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-        // Global environment variables
-   
         const firebaseConfig = {
-        apiKey: "AIzaSyAaJ4CDIJLXbEvuJF0_LKNtoYtOek1bjS0",
-        authDomain: "agenda-2026-e3b3a.firebaseapp.com",
-        databaseURL: "https://agenda-2026-e3b3a-default-rtdb.firebaseio.com",
-        projectId: "agenda-2026-e3b3a",
-        storageBucket: "agenda-2026-e3b3a.firebasestorage.app",
-        messagingSenderId: "1090124230282",
-        appId: "1:1090124230282:web:715c0a3f89078602568770"
+            apiKey: "AIzaSyAaJ4CDIJLXbEvuJF0_LKNtoYtOek1bjS0",
+            authDomain: "agenda-2026-e3b3a.firebaseapp.com",
+            databaseURL: "https://agenda-2026-e3b3a-default-rtdb.firebaseio.com",
+            projectId: "agenda-2026-e3b3a",
+            storageBucket: "agenda-2026-e3b3a.firebasestorage.app",
+            messagingSenderId: "1090124230282",
+            appId: "1:1090124230282:web:715c0a3f89078602568770"
         };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app); // Note que aqui usamos getDatabase para o Realtime
-const appId = 'planner-2026';
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+        const appId = 'planner-2026';
 
         let user = null;
         let currentDate = new Date(2026, 0, 1);
         let saveTimeout;
 
-        // Initialize UI Elements
+        // UI Initialization
         const monthNav = document.getElementById('month-nav');
         ["J","F","M","A","M","J","J","A","S","O","N","D"].forEach((m, i) => {
             const btn = document.createElement('button');
@@ -187,70 +174,45 @@ const appId = 'planner-2026';
             `;
         }
 
-        // Auth Logic
-        const initAuth = async () => {
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
-        };
-        initAuth();
-
+        // Auth
+        signInAnonymously(auth).catch(e => console.error("Auth Error", e));
         onAuthStateChanged(auth, (u) => {
             user = u;
             if (user) updateUI();
         });
 
-        // Save Mechanism
+        // Save
         window.debouncedSave = () => {
             document.getElementById('sync-status').innerText = "A guardar...";
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(saveToCloud, 1000);
         };
 
-
-function updateUI() {
-    if (!user) return;
-    
-    const key = getDayKey();
-    const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-    const monthName = new Intl.DateTimeFormat('pt-BR', {month:'long'}).format(currentDate);
-
-    document.getElementById('day-of-week').innerText = daysOfWeek[currentDate.getDay()];
-    document.getElementById('full-date').innerText = `${currentDate.getDate().toString().padStart(2, '0')} de ${monthName}`;
-    
-    document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`m-${currentDate.getMonth()}`).classList.add('active');
-
-    const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
-    onValue(dbRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data && document.activeElement.tagName !== 'TEXTAREA' && !document.activeElement.id.includes('priority')) {
-            document.getElementById('daily-notes').value = data.notes || "";
-            data.priorities?.forEach((p, i) => {
-                if(document.getElementById(`priority-${i}`)) {
-                    document.getElementById(`priority-${i}`).value = p.text || "";
-                    document.getElementById(`check-${i}`).checked = p.checked || false;
-                }
-            });
-        } else if (!data && document.activeElement.tagName !== 'TEXTAREA') {
-            document.getElementById('daily-notes').value = "";
+        async function saveToCloud() {
+            if (!user) return;
+            const key = getDayKey();
+            const priorities = [];
             for(let i=0; i<5; i++) {
-                document.getElementById(`priority-${i}`).value = "";
-                document.getElementById(`check-${i}`).checked = false;
+                priorities.push({
+                    text: document.getElementById(`priority-${i}`).value,
+                    checked: document.getElementById(`check-${i}`).checked
+                });
+            }
+            try {
+                const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
+                await set(dbRef, {
+                    notes: document.getElementById('daily-notes').value,
+                    priorities: priorities,
+                    updatedAt: Date.now()
+                });
+                document.getElementById('sync-status').innerText = "Sincronizado";
+            } catch (e) {
+                document.getElementById('sync-status').innerText = "Erro ao guardar";
             }
         }
-    });
-}
 
-
-
-        let unsubscribe = null;
         function updateUI() {
-            if (unsubscribe) unsubscribe();
             if (!user) return;
-            
             const key = getDayKey();
             const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
             const monthName = new Intl.DateTimeFormat('pt-BR', {month:'long'}).format(currentDate);
@@ -261,10 +223,10 @@ function updateUI() {
             document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`m-${currentDate.getMonth()}`).classList.add('active');
 
-            const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'days', key);
-            unsubscribe = onSnapshot(docRef, (doc) => {
-                if (doc.exists() && document.activeElement.tagName !== 'TEXTAREA' && !document.activeElement.id.includes('priority')) {
-                    const data = doc.data();
+            const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
+            onValue(dbRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data && document.activeElement.tagName !== 'TEXTAREA' && !document.activeElement.id.includes('priority')) {
                     document.getElementById('daily-notes').value = data.notes || "";
                     data.priorities?.forEach((p, i) => {
                         if(document.getElementById(`priority-${i}`)) {
@@ -272,14 +234,14 @@ function updateUI() {
                             document.getElementById(`check-${i}`).checked = p.checked || false;
                         }
                     });
-                } else if (!doc.exists() && document.activeElement.tagName !== 'TEXTAREA') {
+                } else if (!data && document.activeElement.tagName !== 'TEXTAREA') {
                     document.getElementById('daily-notes').value = "";
                     for(let i=0; i<5; i++) {
                         document.getElementById(`priority-${i}`).value = "";
                         document.getElementById(`check-${i}`).checked = false;
                     }
                 }
-            }, (err) => console.error("Firestore Error:", err));
+            });
         }
 
         function getDayKey() {
@@ -292,14 +254,14 @@ function updateUI() {
             updateUI();
         };
 
-        // AI Features
+        // IA
         const apiKey = "AIzaSyC_hFcKVtSUEG9MR9-gERYHYXHSJV0qJtM"; 
         window.organizeNotes = async () => {
             const el = document.getElementById('daily-notes');
             if(!el.value.trim()) return;
             el.classList.add('ai-loading');
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: "Atue como um assistente de produtividade. Organize as notas de reunião abaixo em tópicos profissionais. Corrija a gramática e mantenha em Português:\n\n" + el.value }] }] })
@@ -318,7 +280,7 @@ function updateUI() {
             const btn = document.getElementById('btn-extract');
             btn.classList.add('ai-loading');
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -335,7 +297,6 @@ function updateUI() {
             } finally { btn.classList.remove('ai-loading'); }
         };
 
-        // Swipe support
         let touchstartX = 0;
         document.addEventListener('touchstart', e => touchstartX = e.changedTouches[0].screenX);
         document.addEventListener('touchend', e => {
