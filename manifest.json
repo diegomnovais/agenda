@@ -1,0 +1,16 @@
+
+{
+  "name": "Planner 2026",
+  "short_name": "Planner",
+  "start_url": "planner_2026.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3652/3652191.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
