@@ -144,10 +144,43 @@
         let user = null;
         let currentDate = new Date();
         if (currentDate.getFullYear() !== 2026) currentDate = new Date(2026, 0, 1);
-        let saveTimeout;
+        
+        let saveTimeout = null;
         let currentUnsubscribe = null;
 
-        // Limpa a tela instantaneamente para evitar vazamento de texto
+        // Função para empacotar os dados atuais da tela
+        function getDomData() {
+            const priorities = [];
+            for(let i=0; i<5; i++) {
+                const p = document.getElementById(`priority-${i}`);
+                const c = document.getElementById(`check-${i}`);
+                priorities.push({
+                    text: p ? p.value : "",
+                    checked: c ? c.checked : false
+                });
+            }
+            const notes = document.getElementById('daily-notes');
+            return {
+                notes: notes ? notes.value : "",
+                priorities: priorities,
+                updatedAt: Date.now()
+            };
+        }
+
+        // Função direta para gravar no Firebase
+        async function forceSave(key, dataObj) {
+            if (!user) return;
+            try {
+                const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
+                await set(dbRef, dataObj);
+                const status = document.getElementById('sync-status');
+                if (status) status.innerText = "Sincronizado";
+            } catch (e) {
+                const status = document.getElementById('sync-status');
+                if (status) status.innerText = "Erro ao guardar";
+            }
+        }
+
         window.clearScreen = () => {
             const notes = document.getElementById('daily-notes');
             if(notes) notes.value = "";
@@ -164,11 +197,16 @@
             const btn = document.createElement('button');
             btn.className = 'month-btn text-slate-500 hover:text-white';
             btn.id = `m-${i}`; btn.innerText = m;
-            btn.onclick = () => { 
-                if (saveTimeout) { clearTimeout(saveTimeout); saveToCloud(); saveTimeout = null; }
-                if (document.activeElement) document.activeElement.blur(); 
+            btn.onclick = async () => { 
+                // Se houver texto pendente, salva IMEDIATAMENTE antes de trocar o mês
+                if (saveTimeout) { 
+                    clearTimeout(saveTimeout); 
+                    saveTimeout = null; 
+                    await forceSave(getDayKey(), getDomData()); 
+                }
                 
-                window.clearScreen(); // Guilhotina visual
+                if (document.activeElement) document.activeElement.blur(); 
+                window.clearScreen(); 
 
                 currentDate = new Date(2026, i, 1); 
                 updateUI(); 
@@ -202,36 +240,20 @@
         });
 
         window.debouncedSave = () => {
-            document.getElementById('sync-status').innerText = "A guardar...";
+            const status = document.getElementById('sync-status');
+            if (status) status.innerText = "A guardar...";
+            
+            // "Fotografa" a data exata em que o usuário digitou
+            const keyToSave = getDayKey();
+            const dataToSave = getDomData();
+
             if (saveTimeout) clearTimeout(saveTimeout);
+            
             saveTimeout = setTimeout(() => {
-                saveToCloud();
+                forceSave(keyToSave, dataToSave);
                 saveTimeout = null;
             }, 1000);
         };
-
-        async function saveToCloud() {
-            if (!user) return;
-            const key = getDayKey();
-            const priorities = [];
-            for(let i=0; i<5; i++) {
-                priorities.push({
-                    text: document.getElementById(`priority-${i}`).value,
-                    checked: document.getElementById(`check-${i}`).checked
-                });
-            }
-            try {
-                const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
-                await set(dbRef, {
-                    notes: document.getElementById('daily-notes').value,
-                    priorities: priorities,
-                    updatedAt: Date.now()
-                });
-                document.getElementById('sync-status').innerText = "Sincronizado";
-            } catch (e) {
-                document.getElementById('sync-status').innerText = "Erro ao guardar";
-            }
-        }
 
         function updateUI() {
             const key = getDayKey();
@@ -242,26 +264,36 @@
             document.getElementById('full-date').innerText = `${currentDate.getDate().toString().padStart(2, '0')} de ${monthName}`;
             
             document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`m-${currentDate.getMonth()}`).classList.add('active');
+            const mBtn = document.getElementById(`m-${currentDate.getMonth()}`);
+            if (mBtn) mBtn.classList.add('active');
 
             if (!user) return;
-            const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
             
             if (currentUnsubscribe) {
                 currentUnsubscribe();
             }
 
+            const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
+            
             currentUnsubscribe = onValue(dbRef, (snapshot) => {
+                // Impede o Firebase de substituir a tela se o usuário estiver focado digitando
+                const isFocused = document.activeElement && 
+                                  (document.activeElement.tagName === 'TEXTAREA' || 
+                                   document.activeElement.tagName === 'INPUT');
+                if (isFocused) return;
+
                 const data = snapshot.val();
-                if (data && document.activeElement.tagName !== 'TEXTAREA' && !document.activeElement.id.includes('priority')) {
-                    document.getElementById('daily-notes').value = data.notes || "";
+                if (data) {
+                    const notes = document.getElementById('daily-notes');
+                    if (notes) notes.value = data.notes || "";
+                    
                     data.priorities?.forEach((p, i) => {
-                        if(document.getElementById(`priority-${i}`)) {
-                            document.getElementById(`priority-${i}`).value = p.text || "";
-                            document.getElementById(`check-${i}`).checked = p.checked || false;
-                        }
+                        const el = document.getElementById(`priority-${i}`);
+                        const chk = document.getElementById(`check-${i}`);
+                        if(el) el.value = p.text || "";
+                        if(chk) chk.checked = p.checked || false;
                     });
-                } else if (!data && document.activeElement.tagName !== 'TEXTAREA') {
+                } else {
                     window.clearScreen();
                 }
             });
@@ -271,14 +303,23 @@
             return `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
         }
 
-        window.changeDay = (d) => {
-            if (saveTimeout) { clearTimeout(saveTimeout); saveToCloud(); saveTimeout = null; }
+        window.changeDay = async (d) => {
+            // Se houver gravação pendente, salva usando a data VELHA antes de avançar a tela
+            if (saveTimeout) {
+                clearTimeout(saveTimeout);
+                saveTimeout = null;
+                const status = document.getElementById('sync-status');
+                if (status) status.innerText = "Guardando...";
+                await forceSave(getDayKey(), getDomData());
+            }
+
             if (document.activeElement) document.activeElement.blur();
             
-            window.clearScreen(); // Guilhotina visual
+            window.clearScreen(); 
 
             currentDate.setDate(currentDate.getDate() + d);
             if(currentDate.getFullYear() !== 2026) currentDate.setFullYear(2026);
+            
             updateUI();
         };
 
@@ -323,11 +364,19 @@
         };
 
         let touchstartX = 0;
-        document.addEventListener('touchstart', e => touchstartX = e.changedTouches[0].screenX);
-        document.addEventListener('touchend', e => {
+        let touchstartY = 0;
+        document.addEventListener('touchstart', e => {
+            touchstartX = e.changedTouches[0].screenX;
+            touchstartY = e.changedTouches[0].screenY;
+        }, {passive: true});
+        document.addEventListener('touchend', async e => {
             const touchendX = e.changedTouches[0].screenX;
-            if (touchstartX - touchendX > 100) window.changeDay(1);
-            if (touchendX - touchstartX > 100) window.changeDay(-1);
+            const touchendY = e.changedTouches[0].screenY;
+            
+            if (Math.abs(touchstartX - touchendX) > 100 && Math.abs(touchstartY - touchendY) < 50) {
+                if (touchstartX - touchendX > 100) await window.changeDay(1);
+                if (touchendX - touchstartX > 100) await window.changeDay(-1);
+            }
         });
     </script>
 </body>
