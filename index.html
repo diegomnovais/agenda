@@ -287,7 +287,8 @@
             renderDayFromMemory();
             document.getElementById('sync-status').innerText = "App Pronto";
         }
-
+        // Desenha a data de hoje instantaneamente antes de checar a internet
+        renderDayFromMemory();
         signInAnonymously(auth).catch(e => console.error("Auth Error", e));
         onAuthStateChanged(auth, (u) => {
             if (u) {
