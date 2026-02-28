@@ -145,18 +145,31 @@
         let currentDate = new Date();
         if (currentDate.getFullYear() !== 2026) currentDate = new Date(2026, 0, 1);
         let saveTimeout;
-        let currentUnsubscribe = null; // <- Correção de Memória
+        let currentUnsubscribe = null;
 
-        // UI Initialization
+        // Limpa a tela instantaneamente para evitar vazamento de texto
+        window.clearScreen = () => {
+            const notes = document.getElementById('daily-notes');
+            if(notes) notes.value = "";
+            for(let i=0; i<5; i++) {
+                const p = document.getElementById(`priority-${i}`);
+                if (p) p.value = "";
+                const c = document.getElementById(`check-${i}`);
+                if (c) c.checked = false;
+            }
+        };
+
         const monthNav = document.getElementById('month-nav');
         ["J","F","M","A","M","J","J","A","S","O","N","D"].forEach((m, i) => {
             const btn = document.createElement('button');
             btn.className = 'month-btn text-slate-500 hover:text-white';
             btn.id = `m-${i}`; btn.innerText = m;
             btn.onclick = () => { 
-                // <- Correção de Segurança: Salva o pendente antes de trocar o mês
                 if (saveTimeout) { clearTimeout(saveTimeout); saveToCloud(); saveTimeout = null; }
                 if (document.activeElement) document.activeElement.blur(); 
+                
+                window.clearScreen(); // Guilhotina visual
+
                 currentDate = new Date(2026, i, 1); 
                 updateUI(); 
             };
@@ -182,7 +195,6 @@
             `;
         }
 
-        // Auth
         signInAnonymously(auth).catch(e => console.error("Auth Error", e));
         onAuthStateChanged(auth, (u) => {
             user = u;
@@ -191,8 +203,11 @@
 
         window.debouncedSave = () => {
             document.getElementById('sync-status').innerText = "A guardar...";
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(saveToCloud, 1000);
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                saveToCloud();
+                saveTimeout = null;
+            }, 1000);
         };
 
         async function saveToCloud() {
@@ -232,7 +247,6 @@
             if (!user) return;
             const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
             
-            // <- Correção do Fantasma: Desconecta o monitoramento do dia anterior
             if (currentUnsubscribe) {
                 currentUnsubscribe();
             }
@@ -248,11 +262,7 @@
                         }
                     });
                 } else if (!data && document.activeElement.tagName !== 'TEXTAREA') {
-                    document.getElementById('daily-notes').value = "";
-                    for(let i=0; i<5; i++) {
-                        document.getElementById(`priority-${i}`).value = "";
-                        document.getElementById(`check-${i}`).checked = false;
-                    }
+                    window.clearScreen();
                 }
             });
         }
@@ -262,9 +272,10 @@
         }
 
         window.changeDay = (d) => {
-            // <- Correção de Segurança: Salva o pendente antes de trocar o dia
             if (saveTimeout) { clearTimeout(saveTimeout); saveToCloud(); saveTimeout = null; }
             if (document.activeElement) document.activeElement.blur();
+            
+            window.clearScreen(); // Guilhotina visual
 
             currentDate.setDate(currentDate.getDate() + d);
             if(currentDate.getFullYear() !== 2026) currentDate.setFullYear(2026);
