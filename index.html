@@ -80,14 +80,14 @@
         
         <header class="h-24 sm:h-32 border-b border-slate-100 flex items-center justify-between px-6 sm:px-10 bg-white shrink-0">
             <div class="flex items-center gap-4">
-                <button onclick="changeDay(-1)" class="p-2 hover:bg-slate-50 rounded-full text-slate-400">
+                <button onclick="changeDay(-1)" class="p-2 hover:bg-slate-50 rounded-full text-slate-400 transition-colors">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 </button>
                 <div>
                     <h2 class="text-xs font-bold text-indigo-500 uppercase tracking-widest" id="day-of-week">---</h2>
                     <h1 class="text-xl sm:text-3xl font-bold text-slate-800" id="full-date">A carregar...</h1>
                 </div>
-                <button onclick="changeDay(1)" class="p-2 hover:bg-slate-50 rounded-full text-slate-400">
+                <button onclick="changeDay(1)" class="p-2 hover:bg-slate-50 rounded-full text-slate-400 transition-colors">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </button>
             </div>
@@ -112,11 +112,11 @@
                     <button onclick="organizeNotes()" id="btn-org" class="text-indigo-600 text-[10px] font-bold hover:underline">✨ ORGANIZAR COM IA</button>
                 </div>
                 <textarea id="daily-notes" oninput="debouncedSave()" 
-                    class="flex-1 w-full p-6 sm:p-10 outline-none resize-none text-slate-700 text-lg sm:text-xl lined-paper hide-scrollbar"
+                    class="flex-1 w-full p-6 sm:p-10 outline-none resize-none text-slate-700 text-lg sm:text-xl lined-paper hide-scrollbar transition-opacity duration-200"
                     placeholder="Escreva aqui..."></textarea>
                 
                 <div class="h-6 bg-white border-t border-slate-50 flex items-center px-4 justify-end">
-                    <span id="sync-status" class="text-[9px] text-slate-300 italic uppercase">Sincronizado</span>
+                    <span id="sync-status" class="text-[9px] text-slate-300 italic uppercase">A aguardar ligação...</span>
                 </div>
             </div>
         </div>
@@ -145,10 +145,11 @@
         let currentDate = new Date();
         if (currentDate.getFullYear() !== 2026) currentDate = new Date(2026, 0, 1);
         
+        // Variáveis de Sistema Blindadas
         let saveTimeout = null;
         let currentUnsubscribe = null;
+        let isDataLoaded = false; // A Trava Principal
 
-        // Função para empacotar os dados atuais da tela
         function getDomData() {
             const priorities = [];
             for(let i=0; i<5; i++) {
@@ -167,7 +168,6 @@
             };
         }
 
-        // Função direta para gravar no Firebase
         async function forceSave(key, dataObj) {
             if (!user) return;
             try {
@@ -181,14 +181,34 @@
             }
         }
 
-        window.clearScreen = () => {
+        // Função que Bloqueia Visão e Edição enquanto Carrega
+        window.clearAndLockScreen = () => {
             const notes = document.getElementById('daily-notes');
-            if(notes) notes.value = "";
+            if(notes) {
+                notes.value = "";
+                notes.readOnly = true;
+                notes.classList.add('opacity-40'); // Efeito de bloqueio visual
+            }
             for(let i=0; i<5; i++) {
                 const p = document.getElementById(`priority-${i}`);
-                if (p) p.value = "";
+                if (p) { p.value = ""; p.readOnly = true; p.classList.add('opacity-40'); }
                 const c = document.getElementById(`check-${i}`);
-                if (c) c.checked = false;
+                if (c) { c.checked = false; c.disabled = true; }
+            }
+        };
+
+        // Função que Libera a Edição após Carregamento
+        window.unlockScreen = () => {
+            const notes = document.getElementById('daily-notes');
+            if(notes) {
+                notes.readOnly = false;
+                notes.classList.remove('opacity-40');
+            }
+            for(let i=0; i<5; i++) {
+                const p = document.getElementById(`priority-${i}`);
+                if (p) { p.readOnly = false; p.classList.remove('opacity-40'); }
+                const c = document.getElementById(`check-${i}`);
+                if (c) { c.disabled = false; }
             }
         };
 
@@ -198,15 +218,14 @@
             btn.className = 'month-btn text-slate-500 hover:text-white';
             btn.id = `m-${i}`; btn.innerText = m;
             btn.onclick = async () => { 
-                // Se houver texto pendente, salva IMEDIATAMENTE antes de trocar o mês
-                if (saveTimeout) { 
-                    clearTimeout(saveTimeout); 
-                    saveTimeout = null; 
-                    await forceSave(getDayKey(), getDomData()); 
-                }
+                if (!isDataLoaded) return; // Se ainda não carregou, ignora cliques ansiosos
+
+                if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+                await forceSave(getDayKey(), getDomData());
                 
+                isDataLoaded = false; // Volta a trancar
                 if (document.activeElement) document.activeElement.blur(); 
-                window.clearScreen(); 
+                window.clearAndLockScreen(); 
 
                 currentDate = new Date(2026, i, 1); 
                 updateUI(); 
@@ -218,8 +237,8 @@
         for(let i=0; i<5; i++) {
             prioList.innerHTML += `
                 <div class="flex items-center gap-2">
-                    <input type="checkbox" id="check-${i}" onchange="window.debouncedSave()" class="w-3 h-3 rounded-full border-slate-300 text-indigo-600">
-                    <input type="text" id="priority-${i}" oninput="window.debouncedSave()" placeholder="..." class="bg-transparent border-b border-slate-100 w-full text-[11px] outline-none focus:border-indigo-300">
+                    <input type="checkbox" id="check-${i}" onchange="window.debouncedSave()" class="w-3 h-3 rounded-full border-slate-300 text-indigo-600 transition-opacity duration-200">
+                    <input type="text" id="priority-${i}" oninput="window.debouncedSave()" placeholder="..." class="bg-transparent border-b border-slate-100 w-full text-[11px] outline-none focus:border-indigo-300 transition-opacity duration-200">
                 </div>
             `;
         }
@@ -240,15 +259,16 @@
         });
 
         window.debouncedSave = () => {
+            if (!isDataLoaded) return; // PROÍBE SALVAR SE A TELA AINDA ESTÁ A CARREGAR
+
             const status = document.getElementById('sync-status');
             if (status) status.innerText = "A guardar...";
-            
-            // "Fotografa" a data exata em que o usuário digitou
+
             const keyToSave = getDayKey();
             const dataToSave = getDomData();
 
             if (saveTimeout) clearTimeout(saveTimeout);
-            
+
             saveTimeout = setTimeout(() => {
                 forceSave(keyToSave, dataToSave);
                 saveTimeout = null;
@@ -276,11 +296,18 @@
             const dbRef = ref(db, 'users/' + user.uid + '/days/' + key);
             
             currentUnsubscribe = onValue(dbRef, (snapshot) => {
-                // Impede o Firebase de substituir a tela se o usuário estiver focado digitando
+                isDataLoaded = true; // DADOS CHEGARAM DA NUVEM!
+
                 const isFocused = document.activeElement && 
                                   (document.activeElement.tagName === 'TEXTAREA' || 
                                    document.activeElement.tagName === 'INPUT');
-                if (isFocused) return;
+                const hasText = document.getElementById('daily-notes').value.trim() !== "";
+                
+                // Só impede de reescrever a tela se já estiver com as mãos no teclado a digitar
+                if (isFocused && hasText) {
+                    window.unlockScreen();
+                    return;
+                }
 
                 const data = snapshot.val();
                 if (data) {
@@ -294,8 +321,17 @@
                         if(chk) chk.checked = p.checked || false;
                     });
                 } else {
-                    window.clearScreen();
+                    const notes = document.getElementById('daily-notes');
+                    if (notes) notes.value = "";
+                    for(let i=0; i<5; i++) {
+                        const p = document.getElementById(`priority-${i}`);
+                        if (p) p.value = "";
+                        const c = document.getElementById(`check-${i}`);
+                        if (c) c.checked = false;
+                    }
                 }
+                
+                window.unlockScreen(); // Liberta o ecrã para trabalhar
             });
         }
 
@@ -304,18 +340,20 @@
         }
 
         window.changeDay = async (d) => {
-            // Se houver gravação pendente, salva usando a data VELHA antes de avançar a tela
+            if (!isDataLoaded) return; // Impede saltar dias se a rede estiver lenta
+
             if (saveTimeout) {
                 clearTimeout(saveTimeout);
                 saveTimeout = null;
-                const status = document.getElementById('sync-status');
-                if (status) status.innerText = "Guardando...";
-                await forceSave(getDayKey(), getDomData());
             }
+            const status = document.getElementById('sync-status');
+            if (status) status.innerText = "Guardando...";
+            await forceSave(getDayKey(), getDomData()); // Guarda a folha atual antes de mudar
 
+            isDataLoaded = false; // Tranca tudo de novo
             if (document.activeElement) document.activeElement.blur();
             
-            window.clearScreen(); 
+            window.clearAndLockScreen(); 
 
             currentDate.setDate(currentDate.getDate() + d);
             if(currentDate.getFullYear() !== 2026) currentDate.setFullYear(2026);
@@ -325,6 +363,7 @@
 
         const apiKey = "AIzaSyC_hFcKVtSUEG9MR9-gERYHYXHSJV0qJtM"; 
         window.organizeNotes = async () => {
+            if (!isDataLoaded) return;
             const el = document.getElementById('daily-notes');
             if(!el.value.trim()) return;
             el.classList.add('ai-loading');
@@ -342,6 +381,7 @@
         };
 
         window.extractPriorities = async () => {
+            if (!isDataLoaded) return;
             const text = document.getElementById('daily-notes').value;
             if(!text.trim()) return;
             const btn = document.getElementById('btn-extract');
@@ -365,17 +405,24 @@
 
         let touchstartX = 0;
         let touchstartY = 0;
+        let isSwiping = false; // Cooldown para o dedo
+
         document.addEventListener('touchstart', e => {
             touchstartX = e.changedTouches[0].screenX;
             touchstartY = e.changedTouches[0].screenY;
         }, {passive: true});
+
         document.addEventListener('touchend', async e => {
+            if (isSwiping || !isDataLoaded) return; // Só arrasta se já carregou
+            
             const touchendX = e.changedTouches[0].screenX;
             const touchendY = e.changedTouches[0].screenY;
             
             if (Math.abs(touchstartX - touchendX) > 100 && Math.abs(touchstartY - touchendY) < 50) {
+                isSwiping = true;
                 if (touchstartX - touchendX > 100) await window.changeDay(1);
                 if (touchendX - touchstartX > 100) await window.changeDay(-1);
+                setTimeout(() => { isSwiping = false; }, 400); // 400ms de respiro entre páginas
             }
         });
     </script>
