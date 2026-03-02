@@ -29,7 +29,6 @@
             touch-action: manipulation;
         }
 
-        /* RÉGUA MATEMÁTICA: 40px exatos por linha para alinhar com as horas */
         .lined-paper {
             background-image: repeating-linear-gradient(transparent, transparent 39px, var(--line-color) 39px, var(--line-color) 40px);
             background-attachment: local;
@@ -139,8 +138,15 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
+        // Válvula de Segurança Global - Mostra erros direto na tela para não ficarmos cegos
+        window.onerror = function(msg) {
+            const title = document.getElementById('full-date');
+            if (title) title.innerText = "Erro: " + msg;
+        };
+
         const firebaseConfig = {
-            apiKey: "AIzaSyAaJ4CDIJlXbEvuJF0_lKNtoYtOek1bjS0",
+            // Chave corrigida (maiúsculas) para resolver o erro 'api-key-not-valid' da Imagem 4
+            apiKey: "AIzaSyAaJ4CDIJLXbEvuJF0_LKNtoYtOek1bjS0",
             authDomain: "agenda-2026-e3b3a.firebaseapp.com",
             databaseURL: "https://agenda-2026-e3b3a-default-rtdb.firebaseio.com",
             projectId: "agenda-2026-e3b3a",
@@ -164,15 +170,22 @@
         let pendingSaves = {}; 
 
         function getDayKey() {
-            return `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+            let y = currentDate.getFullYear();
+            let m = currentDate.getMonth() + 1;
+            let d = currentDate.getDate();
+            m = m < 10 ? '0' + m : m;
+            d = d < 10 ? '0' + d : d;
+            return y + "-" + m + "-" + d;
         }
 
-        // --- ROLAGEM SINCRONIZADA CORRIGIDA ---
+        // --- ROLAGEM SINCRONIZADA CORRIGIDA E BLINDADA ---
         const textarea = document.getElementById('daily-notes');
         const hoursSidebar = document.getElementById('hours-sidebar');
-        textarea.addEventListener('scroll', () => {
-            hoursSidebar.scrollTop = textarea.scrollTop;
-        });
+        if (textarea && hoursSidebar) {
+            textarea.addEventListener('scroll', () => {
+                hoursSidebar.scrollTop = textarea.scrollTop;
+            });
+        }
 
         function renderMiniCalendar() {
             const calDays = document.getElementById('mini-calendar-days');
@@ -184,19 +197,19 @@
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth();
             const monthName = new Intl.DateTimeFormat('pt-BR', {month:'long'}).format(currentDate);
-            calMonth.innerText = `${monthName} ${year}`;
+            calMonth.innerText = monthName + " " + year;
             
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             
             for (let i = 0; i < firstDay; i++) {
-                calDays.innerHTML += `<div></div>`;
+                calDays.innerHTML += '<div></div>';
             }
             
             for (let day = 1; day <= daysInMonth; day++) {
                 const isToday = day === currentDate.getDate();
                 const bgClass = isToday ? 'bg-indigo-500 text-white rounded-full shadow-sm' : 'hover:bg-slate-200 cursor-pointer rounded-full text-slate-600 transition-colors';
-                calDays.innerHTML += `<div class="p-1 mx-0.5 ${bgClass}" onclick="window.goToDate(${year}, ${month}, ${day})">${day}</div>`;
+                calDays.innerHTML += '<div class="p-1 mx-0.5 ' + bgClass + '" onclick="window.goToDate(' + year + ', ' + month + ', ' + day + ')">' + day + '</div>';
             }
         }
 
@@ -212,8 +225,8 @@
         function captureScreenData() {
             const priorities = [];
             for(let i=0; i<5; i++) {
-                const p = document.getElementById(`priority-${i}`);
-                const c = document.getElementById(`check-${i}`);
+                const p = document.getElementById('priority-' + i);
+                const c = document.getElementById('check-' + i);
                 priorities.push({
                     text: p ? p.value : "",
                     checked: c ? c.checked : false
@@ -236,10 +249,19 @@
             if (textarea) textarea.value = data.notes || "";
             
             for(let i=0; i<5; i++) {
-                const p = document.getElementById(`priority-${i}`);
-                const c = document.getElementById(`check-${i}`);
-                if (p) p.value = data.priorities?.[i]?.text || "";
-                if (c) c.checked = data.priorities?.[i]?.checked || false;
+                const p = document.getElementById('priority-' + i);
+                const c = document.getElementById('check-' + i);
+                
+                // Lógica Clássica de Extração (Evita erro em navegadores antigos)
+                let pText = "";
+                let pCheck = false;
+                if (data.priorities && data.priorities[i]) {
+                    pText = data.priorities[i].text || "";
+                    pCheck = data.priorities[i].checked || false;
+                }
+                
+                if (p) p.value = pText;
+                if (c) c.checked = pCheck;
             }
         }
 
@@ -247,11 +269,17 @@
             const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
             const monthName = new Intl.DateTimeFormat('pt-BR', {month:'long'}).format(currentDate);
 
-            document.getElementById('day-of-week').innerText = daysOfWeek[currentDate.getDay()];
-            document.getElementById('full-date').innerText = `${currentDate.getDate().toString().padStart(2, '0')} de ${monthName}`;
+            const dayEl = document.getElementById('day-of-week');
+            const dateEl = document.getElementById('full-date');
+            if (dayEl) dayEl.innerText = daysOfWeek[currentDate.getDay()];
+            if (dateEl) {
+                let d = currentDate.getDate();
+                d = d < 10 ? '0' + d : d;
+                dateEl.innerText = d + " de " + monthName;
+            }
             
             document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
-            const mBtn = document.getElementById(`m-${currentDate.getMonth()}`);
+            const mBtn = document.getElementById('m-' + currentDate.getMonth());
             if (mBtn) mBtn.classList.add('active');
         }
 
@@ -261,17 +289,18 @@
             
             localMemoryData[currentKey] = currentData; 
             
-            document.getElementById('sync-status').innerText = "A processar...";
+            const syncEl = document.getElementById('sync-status');
+            if (syncEl) syncEl.innerText = "A processar...";
 
             if (pendingSaves[currentKey]) clearTimeout(pendingSaves[currentKey]);
             
             pendingSaves[currentKey] = setTimeout(() => {
-                // Salvando sempre na mesma pasta central independente do aparelho
+                // Salvando sempre na mesma pasta central (Chave Mestra)
                 const dbRef = ref(db, 'users/' + MASTER_ID + '/days/' + currentKey);
                 set(dbRef, currentData).then(() => {
-                    document.getElementById('sync-status').innerText = "Sincronizado na Nuvem";
+                    if (syncEl) syncEl.innerText = "Sincronizado na Nuvem";
                 }).catch(e => {
-                    document.getElementById('sync-status').innerText = "Falha de rede (Salvo local)";
+                    if (syncEl) syncEl.innerText = "Falha de rede (Salvo local)";
                 });
                 
                 delete pendingSaves[currentKey];
@@ -280,4 +309,140 @@
 
         window.changeDay = (d) => {
             window.triggerSave(); 
-            currentDate.setDate(currentDate.getDate() + d
+            currentDate.setDate(currentDate.getDate() + d);
+            if(currentDate.getFullYear() !== 2026) currentDate.setFullYear(2026);
+            renderDayFromMemory(); 
+        };
+
+        const monthNav = document.getElementById('month-nav');
+        if (monthNav) {
+            ["J","F","M","A","M","J","J","A","S","O","N","D"].forEach((m, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'month-btn text-slate-500 hover:text-white';
+                btn.id = 'm-' + i; 
+                btn.innerText = m;
+                btn.onclick = () => { 
+                    window.triggerSave(); 
+                    currentDate = new Date(2026, i, 1);
+                    renderDayFromMemory();
+                };
+                monthNav.appendChild(btn);
+            });
+        }
+
+        const prioList = document.getElementById('prio-list');
+        if (prioList) {
+            for(let i=0; i<5; i++) {
+                prioList.innerHTML += `
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="check-${i}" onchange="window.triggerSave()" class="w-3 h-3 rounded-full border-slate-300 text-indigo-600 cursor-pointer">
+                        <input type="text" id="priority-${i}" oninput="window.triggerSave()" placeholder="..." class="bg-transparent border-b border-slate-100 w-full text-[11px] outline-none focus:border-indigo-300">
+                    </div>
+                `;
+            }
+        }
+
+        // --- GERAÇÃO DA BARRA DE HORAS (05:00 até 22:00) Lógica Cega e Segura ---
+        const hoursContainer = document.getElementById('hours-container');
+        if (hoursContainer) {
+            for(let i=5; i<=22; i++) {
+                const formatHour = i < 10 ? '0' + i : i;
+                hoursContainer.innerHTML += `
+                    <div class="h-[80px] flex items-start justify-center pr-2">
+                        <span class="text-[10px] font-bold text-slate-400 mt-[10px] uppercase">${formatHour}:00</span>
+                    </div>
+                `;
+            }
+        }
+
+        async function bootApp() {
+            const syncEl = document.getElementById('sync-status');
+            if (syncEl) syncEl.innerText = "A baixar banco de dados...";
+            try {
+                const dbRef = ref(db);
+                // Lendo a base unificada de dados (Chave Mestra)
+                const snapshot = await get(child(dbRef, 'users/' + MASTER_ID + '/days'));
+                if (snapshot.exists()) {
+                    localMemoryData = snapshot.val(); 
+                }
+            } catch (e) {
+                console.error("Modo offline ativado", e);
+            }
+            renderDayFromMemory();
+            if (syncEl) syncEl.innerText = "App Pronto";
+        }
+
+        // Chamada direta forçada para desenhar a tela, não importa se tem internet
+        renderDayFromMemory();
+
+        signInAnonymously(auth).catch(e => {
+            console.error("Auth Error", e);
+        });
+
+        onAuthStateChanged(auth, (u) => {
+            if (u) {
+                user = u;
+                bootApp();
+            }
+        });
+
+        // Funções de IA mantidas com verificações
+        const apiKey = "AIzaSyC_hFcKVtSUEG9MR9-gERYHYXHSJV0qJtM"; 
+        window.organizeNotes = async () => {
+            if(!textarea || !textarea.value.trim()) return;
+            textarea.classList.add('ai-loading');
+            try {
+                const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "Organize as notas de reunião em tópicos profissionais e corrija a gramática:\n\n" + textarea.value }] }] })
+                });
+                const data = await res.json();
+                textarea.value = data.candidates[0].content.parts[0].text;
+                window.triggerSave();
+            } catch (e) { console.error("AI Error:", e); } 
+            finally { textarea.classList.remove('ai-loading'); }
+        };
+
+        window.extractPriorities = async () => {
+            if(!textarea || !textarea.value.trim()) return;
+            const btn = document.getElementById('btn-extract');
+            if (btn) btn.classList.add('ai-loading');
+            try {
+                const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: "Extraia 5 prioridades urgentes destas notas em formato JSON array:\n\n" + textarea.value }] }],
+                        generationConfig: { responseMimeType: "application/json", responseSchema: { type: "ARRAY", items: { type: "STRING" } } }
+                    })
+                });
+                const data = await res.json();
+                const prios = JSON.parse(data.candidates[0].content.parts[0].text);
+                prios.forEach((p, i) => { 
+                    const pr = document.getElementById('priority-' + i);
+                    if(i < 5 && pr) pr.value = p; 
+                });
+                window.triggerSave();
+            } catch (e) { console.error("AI Error:", e); } 
+            finally { if (btn) btn.classList.remove('ai-loading'); }
+        };
+
+        let touchstartX = 0;
+        let touchstartY = 0;
+        document.addEventListener('touchstart', e => {
+            touchstartX = e.changedTouches[0].screenX;
+            touchstartY = e.changedTouches[0].screenY;
+        }, {passive: true});
+
+        document.addEventListener('touchend', e => {
+            const touchendX = e.changedTouches[0].screenX;
+            const touchendY = e.changedTouches[0].screenY;
+            if (Math.abs(touchstartX - touchendX) > 100 && Math.abs(touchstartY - touchendY) < 50) {
+                if (touchstartX - touchendX > 100) window.changeDay(1);
+                if (touchendX - touchstartX > 100) window.changeDay(-1);
+            }
+        });
+    </script>
+</body>
+</html>
