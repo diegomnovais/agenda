@@ -29,12 +29,12 @@
             touch-action: manipulation;
         }
 
-        /* O ALINHAMENTO MILIMÉTRICO (Confirmado pela sua Imagem 5) */
+        /* CORREÇÃO MATEMÁTICA: Trava o texto em 40px exatos e ajusta a base da linha */
         .lined-paper {
             background-image: repeating-linear-gradient(transparent, transparent 39px, var(--line-color) 39px, var(--line-color) 40px);
             background-attachment: local;
-            background-position: 0 -12px; 
-            line-height: 40px;
+            background-position: 0 -11px; 
+            line-height: 40px !important; 
         }
 
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -125,7 +125,7 @@
 
             <div class="flex-1 flex flex-col overflow-hidden relative">
                 <textarea id="daily-notes" oninput="window.triggerSave()" 
-                    class="flex-1 w-full px-6 pt-10 pb-20 sm:px-10 outline-none resize-none text-slate-700 text-lg sm:text-xl lined-paper hide-scrollbar overflow-y-auto"
+                    class="flex-1 w-full px-6 pt-10 pb-20 sm:px-10 outline-none resize-none text-slate-700 text-[18px] sm:text-[20px] leading-[40px] lined-paper hide-scrollbar overflow-y-auto"
                     placeholder="Escreva as anotações do dia..."></textarea>
                 
                 <div class="h-6 bg-white border-t border-slate-50 flex items-center px-4 justify-end shrink-0 absolute bottom-0 w-full z-20">
@@ -146,18 +146,16 @@
     </script>
 
     <script type="module">
-        // Importações do Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-        // Variáveis Centrais
         const MASTER_ID = "diego_sync_2026";
         let currentDate = new Date();
         if (currentDate.getFullYear() !== 2026) currentDate = new Date(2026, 0, 1);
         let localMemoryData = {}; 
         let pendingSaves = {}; 
-        let db = null; // Banco será ativado depois
+        let db = null; 
 
         // --- FASE 1: GERAÇÃO DA INTERFACE (Acontece 100% Offline e Imediato) ---
         
@@ -170,7 +168,6 @@
             return y + "-" + m + "-" + d;
         }
 
-        // 1. Rolagem Sincronizada
         const textarea = document.getElementById('daily-notes');
         const hoursSidebar = document.getElementById('hours-sidebar');
         if (textarea && hoursSidebar) {
@@ -179,7 +176,6 @@
             });
         }
 
-        // 2. Geração das Horas (05:00 às 22:00)
         const hoursContainer = document.getElementById('hours-container');
         if (hoursContainer) {
             for(let i=5; i<=22; i++) {
@@ -192,7 +188,6 @@
             }
         }
 
-        // 3. Geração dos Meses
         const monthNav = document.getElementById('month-nav');
         if (monthNav) {
             ["J","F","M","A","M","J","J","A","S","O","N","D"].forEach((m, i) => {
@@ -209,7 +204,6 @@
             });
         }
 
-        // 4. Geração das Prioridades
         const prioList = document.getElementById('prio-list');
         if (prioList) {
             for(let i=0; i<5; i++) {
@@ -222,7 +216,6 @@
             }
         }
 
-        // Funções Gráficas
         function renderMiniCalendar() {
             const calDays = document.getElementById('mini-calendar-days');
             const calMonth = document.getElementById('mini-cal-month');
@@ -307,164 +300,3 @@
                     pText = data.priorities[i].text || "";
                     pCheck = data.priorities[i].checked || false;
                 }
-                
-                if (p) p.value = pText;
-                if (c) c.checked = pCheck;
-            }
-        }
-
-        window.changeDay = (d) => {
-            window.triggerSave(); 
-            currentDate.setDate(currentDate.getDate() + d);
-            if(currentDate.getFullYear() !== 2026) currentDate.setFullYear(2026);
-            renderDayFromMemory(); 
-        };
-
-        // RENDERIZA A TELA IMEDIATAMENTE (Cura a Tela Branca)
-        renderDayFromMemory();
-        document.getElementById('sync-status').innerText = "TELA RENDERIZADA. CONECTANDO...";
-
-
-        // --- FASE 2: CONEXÃO COM A NUVEM (Acontece em Segundo Plano) ---
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyAaJ4CDIJlXbEvuJF0_lKNtoYtOek1bjS0",
-            authDomain: "agenda-2026-e3b3a.firebaseapp.com",
-            databaseURL: "https://agenda-2026-e3b3a-default-rtdb.firebaseio.com",
-            projectId: "agenda-2026-e3b3a",
-            storageBucket: "agenda-2026-e3b3a.firebasestorage.app",
-            messagingSenderId: "1090124230282",
-            appId: "1:1090124230282:web:715c0a3f89078602568770"
-        };
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            db = getDatabase(app);
-
-            signInAnonymously(auth).catch(e => console.error("Auth", e));
-
-            onAuthStateChanged(auth, async (u) => {
-                if (u) {
-                    const syncEl = document.getElementById('sync-status');
-                    if (syncEl) {
-                        syncEl.innerText = "BAIXANDO DADOS DA NUVEM...";
-                        syncEl.className = "text-[9px] font-bold text-indigo-500 uppercase";
-                    }
-                    try {
-                        const snapshot = await get(child(ref(db), 'users/' + MASTER_ID + '/days'));
-                        if (snapshot.exists()) {
-                            localMemoryData = snapshot.val(); 
-                            renderDayFromMemory(); // Atualiza a tela com os textos baixados
-                        }
-                        if (syncEl) {
-                            syncEl.innerText = "SISTEMA PRONTO E SINCRONIZADO";
-                            syncEl.className = "text-[9px] font-bold text-slate-400 uppercase";
-                        }
-                    } catch (e) {
-                        if (syncEl) {
-                            syncEl.innerText = "OFFLINE (DADOS LOCAIS)";
-                            syncEl.className = "text-[9px] font-bold text-slate-400 uppercase";
-                        }
-                    }
-                }
-            });
-        } catch (error) {
-            document.getElementById('sync-status').innerText = "OFFLINE (SEM CONEXÃO FIREBASE)";
-        }
-
-        // --- FASE 3: SALVAMENTO E INTELIGÊNCIA ARTIFICIAL ---
-
-        window.triggerSave = () => {
-            const currentKey = getDayKey();
-            const currentData = captureScreenData();
-            
-            localMemoryData[currentKey] = currentData; 
-            
-            const syncEl = document.getElementById('sync-status');
-            if (syncEl) {
-                syncEl.innerText = "PROCESSANDO...";
-                syncEl.className = "text-[9px] font-bold text-amber-500 uppercase";
-            }
-
-            if (pendingSaves[currentKey]) clearTimeout(pendingSaves[currentKey]);
-            
-            pendingSaves[currentKey] = setTimeout(() => {
-                if (db) {
-                    const dbRef = ref(db, 'users/' + MASTER_ID + '/days/' + currentKey);
-                    set(dbRef, currentData).then(() => {
-                        if (syncEl) {
-                            syncEl.innerText = "SALVO NA NUVEM";
-                            syncEl.className = "text-[9px] font-bold text-emerald-500 uppercase";
-                        }
-                    }).catch(e => {
-                        if (syncEl) {
-                            syncEl.innerText = "FALHA DE REDE (SALVO LOCAL)";
-                            syncEl.className = "text-[9px] font-bold text-red-500 uppercase";
-                        }
-                    });
-                }
-                delete pendingSaves[currentKey];
-            }, 600);
-        };
-
-        const apiKey = "AIzaSyC_hFcKVtSUEG9MR9-gERYHYXHSJV0qJtM"; 
-        window.organizeNotes = async () => {
-            if(!textarea || !textarea.value.trim()) return;
-            textarea.classList.add('ai-loading');
-            try {
-                const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: "Organize as notas de reunião em tópicos profissionais e corrija a gramática:\n\n" + textarea.value }] }] })
-                });
-                const data = await res.json();
-                textarea.value = data.candidates[0].content.parts[0].text;
-                window.triggerSave();
-            } catch (e) { console.error("AI Error:", e); } 
-            finally { textarea.classList.remove('ai-loading'); }
-        };
-
-        window.extractPriorities = async () => {
-            if(!textarea || !textarea.value.trim()) return;
-            const btn = document.getElementById('btn-extract');
-            if (btn) btn.classList.add('ai-loading');
-            try {
-                const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: "Extraia 5 prioridades urgentes destas notas em formato JSON array:\n\n" + textarea.value }] }],
-                        generationConfig: { responseMimeType: "application/json", responseSchema: { type: "ARRAY", items: { type: "STRING" } } }
-                    })
-                });
-                const data = await res.json();
-                const prios = JSON.parse(data.candidates[0].content.parts[0].text);
-                prios.forEach((p, i) => { 
-                    const pr = document.getElementById('priority-' + i);
-                    if(i < 5 && pr) pr.value = p; 
-                });
-                window.triggerSave();
-            } catch (e) { console.error("AI Error:", e); } 
-            finally { if (btn) btn.classList.remove('ai-loading'); }
-        };
-
-        // Swipe para Celular
-        let touchstartX = 0;
-        let touchstartY = 0;
-        document.addEventListener('touchstart', e => {
-            touchstartX = e.changedTouches[0].screenX;
-            touchstartY = e.changedTouches[0].screenY;
-        }, {passive: true});
-
-        document.addEventListener('touchend', e => {
-            const touchendX = e.changedTouches[0].screenX;
-            const touchendY = e.changedTouches[0].screenY;
-            if (Math.abs(touchstartX - touchendX) > 100 && Math.abs(touchstartY - touchendY) < 50) {
-                if (touchstartX - touchendX > 100) window.changeDay(1);
-                if (touchendX - touchstartX > 100) window.changeDay(-1);
-            }
-        });
-    </script>
-</body>
-</html>
