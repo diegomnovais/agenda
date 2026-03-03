@@ -127,7 +127,7 @@
                     placeholder="Escreva as anotações do dia..."></textarea>
                 
                 <div class="h-6 bg-white border-t border-slate-50 flex items-center px-4 justify-end shrink-0 absolute bottom-0 w-full z-20">
-                    <span id="sync-status" class="text-[9px] text-slate-300 italic uppercase">Iniciando...</span>
+                    <span id="sync-status" class="text-[9px] font-bold text-slate-400 uppercase">Iniciando...</span>
                 </div>
             </div>
         </div>
@@ -138,15 +138,9 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-        // Válvula de Segurança Global - Mostra erros direto na tela para não ficarmos cegos
-        window.onerror = function(msg) {
-            const title = document.getElementById('full-date');
-            if (title) title.innerText = "Erro: " + msg;
-        };
-
         const firebaseConfig = {
-            // Chave corrigida (maiúsculas) para resolver o erro 'api-key-not-valid' da Imagem 4
-            apiKey: "AIzaSyAaJ4CDIJLXbEvuJF0_LKNtoYtOek1bjS0",
+            // A CHAVE CORRETA E ORIGINAL (Restaurada as minúsculas)
+            apiKey: "AIzaSyAaJ4CDIJlXbEvuJF0_lKNtoYtOek1bjS0",
             authDomain: "agenda-2026-e3b3a.firebaseapp.com",
             databaseURL: "https://agenda-2026-e3b3a-default-rtdb.firebaseio.com",
             projectId: "agenda-2026-e3b3a",
@@ -178,7 +172,6 @@
             return y + "-" + m + "-" + d;
         }
 
-        // --- ROLAGEM SINCRONIZADA CORRIGIDA E BLINDADA ---
         const textarea = document.getElementById('daily-notes');
         const hoursSidebar = document.getElementById('hours-sidebar');
         if (textarea && hoursSidebar) {
@@ -252,7 +245,6 @@
                 const p = document.getElementById('priority-' + i);
                 const c = document.getElementById('check-' + i);
                 
-                // Lógica Clássica de Extração (Evita erro em navegadores antigos)
                 let pText = "";
                 let pCheck = false;
                 if (data.priorities && data.priorities[i]) {
@@ -290,17 +282,25 @@
             localMemoryData[currentKey] = currentData; 
             
             const syncEl = document.getElementById('sync-status');
-            if (syncEl) syncEl.innerText = "A processar...";
+            if (syncEl) {
+                syncEl.innerText = "A PROCESSAR...";
+                syncEl.className = "text-[9px] font-bold text-amber-500 uppercase";
+            }
 
             if (pendingSaves[currentKey]) clearTimeout(pendingSaves[currentKey]);
             
             pendingSaves[currentKey] = setTimeout(() => {
-                // Salvando sempre na mesma pasta central (Chave Mestra)
                 const dbRef = ref(db, 'users/' + MASTER_ID + '/days/' + currentKey);
                 set(dbRef, currentData).then(() => {
-                    if (syncEl) syncEl.innerText = "Sincronizado na Nuvem";
+                    if (syncEl) {
+                        syncEl.innerText = "SINCRONIZADO NA NUVEM";
+                        syncEl.className = "text-[9px] font-bold text-emerald-500 uppercase";
+                    }
                 }).catch(e => {
-                    if (syncEl) syncEl.innerText = "Falha de rede (Salvo local)";
+                    if (syncEl) {
+                        syncEl.innerText = "FALHA DE REDE (SALVO LOCAL)";
+                        syncEl.className = "text-[9px] font-bold text-red-500 uppercase";
+                    }
                 });
                 
                 delete pendingSaves[currentKey];
@@ -342,7 +342,6 @@
             }
         }
 
-        // --- GERAÇÃO DA BARRA DE HORAS (05:00 até 22:00) Lógica Cega e Segura ---
         const hoursContainer = document.getElementById('hours-container');
         if (hoursContainer) {
             for(let i=5; i<=22; i++) {
@@ -357,10 +356,12 @@
 
         async function bootApp() {
             const syncEl = document.getElementById('sync-status');
-            if (syncEl) syncEl.innerText = "A baixar banco de dados...";
+            if (syncEl) {
+                syncEl.innerText = "A BAIXAR DADOS...";
+                syncEl.className = "text-[9px] font-bold text-indigo-500 uppercase";
+            }
             try {
                 const dbRef = ref(db);
-                // Lendo a base unificada de dados (Chave Mestra)
                 const snapshot = await get(child(dbRef, 'users/' + MASTER_ID + '/days'));
                 if (snapshot.exists()) {
                     localMemoryData = snapshot.val(); 
@@ -369,10 +370,12 @@
                 console.error("Modo offline ativado", e);
             }
             renderDayFromMemory();
-            if (syncEl) syncEl.innerText = "App Pronto";
+            if (syncEl) {
+                syncEl.innerText = "SISTEMA PRONTO";
+                syncEl.className = "text-[9px] font-bold text-slate-400 uppercase";
+            }
         }
 
-        // Chamada direta forçada para desenhar a tela, não importa se tem internet
         renderDayFromMemory();
 
         signInAnonymously(auth).catch(e => {
@@ -386,7 +389,6 @@
             }
         });
 
-        // Funções de IA mantidas com verificações
         const apiKey = "AIzaSyC_hFcKVtSUEG9MR9-gERYHYXHSJV0qJtM"; 
         window.organizeNotes = async () => {
             if(!textarea || !textarea.value.trim()) return;
